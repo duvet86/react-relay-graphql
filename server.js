@@ -1,14 +1,19 @@
-import chokidar from 'chokidar';
 import express from 'express';
 import graphQLHTTP from 'express-graphql';
-import path from 'path';
+import jwt from 'express-jwt';
+import constants, {
+	APP_PORT,
+	GRAPHQL_PORT,
+	JWT_SECRET
+} from './utils/constants';
+
 import webpack from 'webpack';
 import WebpackDevServer from 'webpack-dev-server';
+
+import chokidar from 'chokidar';
+import path from 'path';
 import { clean } from 'require-clean';
 import { exec } from 'child_process';
-
-const APP_PORT = 3000;
-const GRAPHQL_PORT = 8080;
 
 let graphQLServer;
 let appServer;
@@ -53,20 +58,37 @@ function startGraphQLServer(callback) {
   const schema = require('./data/schema').default;
   const graphQLApp = express();
 
-  graphQLApp.use('/', graphQLHTTP({
-    graphiql: true,
-    pretty: true,
-    schema: schema,
-  }));
+	const authenticate = jwt({
+		secret: JWT_SECRET,
+		credentialsRequired: false,
+		userProperty: 'user'
+	});
 
-  graphQLServer = graphQLApp.listen(GRAPHQL_PORT, () => {
-    console.log(
-      `GraphQL server is now running on http://localhost:${GRAPHQL_PORT}`
-    );
-    if (callback) {
-      callback();
-    }
-  });
+	graphQLApp.use('/', authenticate, (req, res, next) => {
+
+		const authToken = req.user || {};
+		console.log("authToken", authToken);
+
+		const options = {
+			rootValue: {
+						user: authToken
+			},
+			graphiql: true,
+			pretty: true,
+			schema
+		};
+
+		return graphQLHTTP(req => options)(req, res, next);
+	});
+
+graphQLServer = graphQLApp.listen(GRAPHQL_PORT, () => {
+	console.log(
+		`GraphQL server is now running on http://localhost:${GRAPHQL_PORT}`
+	);
+	if (callback) {
+		callback();
+	}
+});
 }
 
 function startServers(callback) {

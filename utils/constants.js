@@ -1,0 +1,3 @@
+export const JWT_SECRET = '4A40333B-EC26-4E18-A976-9B030C23A484';
+export const APP_PORT = 3000;
+export const GRAPHQL_PORT = 8080;
