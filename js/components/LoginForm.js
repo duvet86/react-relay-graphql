@@ -1,6 +1,6 @@
 import React, { Component, PropTypes } from 'react';
 
-class UserForm extends Component {
+export default class LoginForm extends Component {
 
 	static propTypes = {
 		onSave: PropTypes.func.isRequired
@@ -60,5 +60,3 @@ class UserForm extends Component {
 		);
 	}
 }
-
-export default UserForm;

@@ -17,18 +17,29 @@ const db = bookshelf(knex(dbConfig));
 
 export { db };
 
+// USERS
+export const newUser = {
+	id: 0,
+	email: "",
+	password: "",
+	jwt: null
+};
+
 export class User extends db.Model {
 	get tableName() {
 		return 'users';
 	}
 }
 
-export function getAdminUser() {
-	const viewer = new User();
-}
-
 export function getUserById(id) {
 	return User.forge({ id })
+		.fetch()
+		.then(user => user && user.toJSON())
+		.catch((error) => { throw error; });
+}
+
+export function getUserByCredentials(email, password) {
+	return User.forge({ email, password })
 		.fetch()
 		.then(user => user && user.toJSON())
 		.catch((error) => { throw error; });
@@ -42,19 +53,62 @@ export function getAllUsers() {
 }
 
 export function createUser(relayUser) {
-	const userToSave = {
-		email: relayUser.email,
-		password: relayUser.password,
-		remember_token: relayUser.remember_token,
-		created_at: moment().format("YYYY-MM-DD")
-	};
-
-	return User.forge(userToSave)
+	return User.forge({
+			email: relayUser.email,
+			password: relayUser.password,
+			remember_token: relayUser.remember_token,
+			created_at: moment().format("YYYY-MM-DD")
+		})
 		.save()
 		.then(user => user && user.toJSON())
 		.catch((error) => { throw error; });
 }
 
+export function updateJwtTokenForUser(id, jwt_token) {
+	return User.forge({ id })
+		.save({ jwt_token })
+		.then(user => user && user.toJSON())
+		.catch((error) => { throw error; });
+}
+
+// QUOTES
+export class Quote extends db.Model {
+	get tableName() {
+		return 'quotes';
+	}
+}
+
+export function getQuoteById(id) {
+	return Quote.forge({ id })
+		.fetch()
+		.then(quote => quote && quote.toJSON())
+		.catch((error) => { throw error; });
+}
+
+export function getQuotesByAuthorId(authorId) {
+	return Quote.forge({ author_id: authorId })
+		.fetch()
+		.then(quote => quote && quote.toJSON())
+		.catch((error) => { throw error; });
+}
+
+export function getAllQuotes() {
+	return Quote.forge()
+		.fetchAll()
+		.then(quote => quote && quote.toJSON())
+		.catch((error) => { throw error; });
+}
+
+export function createQuote(relayQuote) {
+	return Quote.forge({
+			text: relayQuote.email,
+			author_id: relayQuote.viewerId,
+			created_at: moment().format("YYYY-MM-DD")
+		})
+		.save()
+		.then(quote => quote && quote.toJSON())
+		.catch((error) => { throw error; });
+}
 
 // ------- Admin stuff -------
 export class Viewer {

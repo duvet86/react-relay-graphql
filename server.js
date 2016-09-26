@@ -1,7 +1,7 @@
 import express from 'express';
 import graphQLHTTP from 'express-graphql';
 import jwt from 'express-jwt';
-import constants, {
+import {
 	APP_PORT,
 	GRAPHQL_PORT,
 	JWT_SECRET
@@ -21,7 +21,7 @@ let appServer;
 function startAppServer(callback) {
   // Serve the Relay app
   const compiler = webpack({
-    entry: path.resolve(__dirname, 'js', 'app.js'),
+    entry: path.resolve(__dirname, 'js', 'root.js'),
     module: {
       loaders: [
         {
@@ -31,7 +31,7 @@ function startAppServer(callback) {
         }
       ]
     },
-    output: { filename: '/app.js', path: '/', publicPath: '/js/' }
+    output: { filename: '/root.js', path: '/', publicPath: '/js/' }
   });
 
   appServer = new WebpackDevServer(compiler, {
@@ -65,13 +65,10 @@ function startGraphQLServer(callback) {
 	});
 
 	graphQLApp.use('/', authenticate, (req, res, next) => {
-
-		const authToken = req.user || {};
-		console.log("authToken", authToken);
-
+		console.log("SERVER.user", req.user);
 		const options = {
 			rootValue: {
-						user: authToken
+				user: req.user
 			},
 			graphiql: true,
 			pretty: true,
@@ -81,14 +78,14 @@ function startGraphQLServer(callback) {
 		return graphQLHTTP(req => options)(req, res, next);
 	});
 
-graphQLServer = graphQLApp.listen(GRAPHQL_PORT, () => {
-	console.log(
-		`GraphQL server is now running on http://localhost:${GRAPHQL_PORT}`
-	);
-	if (callback) {
-		callback();
-	}
-});
+	graphQLServer = graphQLApp.listen(GRAPHQL_PORT, () => {
+		console.log(
+			`GraphQL server is now running on http://localhost:${GRAPHQL_PORT}`
+		);
+		if (callback) {
+			callback();
+		}
+	});
 }
 
 function startServers(callback) {
