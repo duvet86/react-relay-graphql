@@ -1,0 +1,68 @@
+import React, { Component, PropTypes } from 'react';
+import Relay, { createContainer } from 'react-relay';
+
+import LoginMutation from '../mutations/LoginMutation';
+import LoginForm from './LoginForm';
+import QuoteList from './QuoteList';
+
+class App extends Component {
+
+	static propTypes = {
+    viewer: PropTypes.object.isRequired,
+    relay: PropTypes.object.isRequired
+  };
+
+  handleLoginForm = (credentials) => {
+
+		const { viewer, relay } = this.props;
+
+		const onSuccess = ({ loginUser }) => {
+			const token = loginUser.viewer.userInSession.jwt_token;
+			localStorage.setItem('jwt_token', token);
+			Relay.injectNetworkLayer(
+				new Relay.DefaultNetworkLayer("/graphql", {
+					headers: {
+						Authorization: 'Bearer ' + token
+					}
+				})
+			);
+		};
+		const onFailure = (transaction) => {
+			var error = transaction.getError() || new Error('Mutation failed.');
+			console.error(error);
+		};
+    relay.commitUpdate(new LoginMutation({
+			credentials,
+			viewer,
+			user: viewer.userInSession
+		}), { onFailure, onSuccess });
+  }
+
+  render() {
+    const { viewer } = this.props;
+		console.log("APP.viewer", viewer);
+    return (
+      <div>
+        <h1>Email: {viewer.userInSession.email}</h1>
+				<QuoteList user={viewer.userInSession} />
+        <LoginForm onSave={this.handleLoginForm} />
+      </div>
+    );
+  }
+}
+
+export default createContainer(App, {
+  fragments: {
+		viewer: () => Relay.QL`
+      fragment on Viewer {
+				${LoginMutation.getFragment('viewer')}
+				userInSession {
+					email
+					jwt_token
+					${LoginMutation.getFragment('user')}
+					${QuoteList.getFragment('user')}
+				}
+      }
+    `
+  }
+});

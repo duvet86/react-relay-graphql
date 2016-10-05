@@ -22,18 +22,24 @@ export const newUser = {
 	id: 0,
 	email: "",
 	password: "",
-	jwt: null
+	jwt: null,
+	quotes: [],
+	quotesCount: 0
 };
 
 export class User extends db.Model {
 	get tableName() {
 		return 'users';
 	}
+
+	quotes() {
+		return this.hasMany(Quote, 'id');
+	}
 }
 
 export function getUserById(id) {
 	return User.forge({ id })
-		.fetch()
+		.fetch({ withRelated: ['quotes'] })
 		.then(user => user && user.toJSON())
 		.catch((error) => { throw error; });
 }
@@ -48,7 +54,7 @@ export function getUserByCredentials(email, password) {
 export function getAllUsers() {
 	return User.forge()
 		.fetchAll()
-		.then(users => users && users.toJSON())
+		.then(users => users && users.toJSON() || [])
 		.catch((error) => { throw error; });
 }
 
@@ -76,6 +82,10 @@ export class Quote extends db.Model {
 	get tableName() {
 		return 'quotes';
 	}
+
+	author() {
+		return this.belongsTo(User, 'author_id');
+	}
 }
 
 export function getQuoteById(id) {
@@ -86,23 +96,23 @@ export function getQuoteById(id) {
 }
 
 export function getQuotesByAuthorId(authorId) {
-	return Quote.forge({ author_id: authorId })
-		.fetch()
-		.then(quote => quote && quote.toJSON())
+	return Quote.where('author_id', authorId)
+		.fetchAll()
+		.then(quotes => quotes && quotes.toJSON() || [])
 		.catch((error) => { throw error; });
 }
 
 export function getAllQuotes() {
 	return Quote.forge()
 		.fetchAll()
-		.then(quote => quote && quote.toJSON())
+		.then(quotes => quotes && quotes.toJSON() || [])
 		.catch((error) => { throw error; });
 }
 
-export function createQuote(relayQuote) {
+export function createQuote(text, author_id) {
 	return Quote.forge({
-			text: relayQuote.email,
-			author_id: relayQuote.viewerId,
+			text: text,
+			author_id: author_id,
 			created_at: moment().format("YYYY-MM-DD")
 		})
 		.save()

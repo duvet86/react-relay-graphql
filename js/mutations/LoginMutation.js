@@ -23,9 +23,9 @@ export default class LoginMutation extends Relay.Mutation {
     return Relay.QL`
       fragment on LoginPayload {
 				viewer {
-					user
+					userInSession
 				}
-				user {
+				userInSession {
 					id
 					userId
 					email
@@ -34,6 +34,7 @@ export default class LoginMutation extends Relay.Mutation {
 					created_at
 					updated_at
 					jwt_token
+					quotesCount
 				}
       }
     `;
@@ -44,7 +45,7 @@ export default class LoginMutation extends Relay.Mutation {
       type: 'FIELDS_CHANGE',
       fieldIDs: {
         viewer: this.props.viewer.id,
-				user: this.props.user.id
+				userInSession: this.props.user.id
       }
     }];
   }
@@ -61,12 +62,12 @@ export default class LoginMutation extends Relay.Mutation {
     return {
       viewer: {
         id: this.props.viewer.id,
-				user: {
+				userInSession: {
 					id: this.props.user.id,
 					email: this.props.credentials.email
 				}
       },
-			user: {
+			userInSession: {
 				email: this.props.credentials.email
 			}
     };

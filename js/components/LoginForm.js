@@ -1,9 +1,18 @@
 import React, { Component, PropTypes } from 'react';
+import Relay, { createContainer } from 'react-relay';
+import { withRouter } from 'react-router';
 
-export default class LoginForm extends Component {
+import LoginMutation from '../mutations/LoginMutation';
+
+class LoginForm extends Component {
 
 	static propTypes = {
-		onSave: PropTypes.func.isRequired
+		location: PropTypes.object,
+		router: React.PropTypes.shape({
+			replace: React.PropTypes.func.isRequired
+		}).isRequired,
+		viewer: PropTypes.object.isRequired,
+    relay: PropTypes.object.isRequired
 	}
 
 	constructor(props) {
@@ -37,7 +46,43 @@ export default class LoginForm extends Component {
 			return;
 		}
 
-		this.props.onSave({ email, password, remember_token });
+		const {
+			viewer,
+			relay,
+			location
+		} = this.props;
+
+		const onSuccess = ({ loginUser }) => {
+			const token = loginUser.userInSession.jwt_token;
+			localStorage.setItem('jwt_token', token);
+			Relay.injectNetworkLayer(
+				new Relay.DefaultNetworkLayer("/graphql", {
+					headers: {
+						Authorization: 'Bearer ' + token
+					}
+				})
+			);
+			if (location.state && location.state.nextPathname) {
+				this.props.router.replace(location.state.nextPathname);
+			} else {
+				this.props.router.replace('/');
+			}
+		};
+		const onFailure = (transaction) => {
+			var error = transaction.getError() || new Error('Mutation failed.');
+			console.error(error);
+		};
+
+		const credentials = {
+			email,
+			password
+		};
+
+    relay.commitUpdate(new LoginMutation({
+			credentials,
+			viewer,
+			user: viewer.userInSession
+		}), { onFailure, onSuccess });
 
 		// this.setState({
 		// 	email: "",
@@ -60,3 +105,17 @@ export default class LoginForm extends Component {
 		);
 	}
 }
+
+export default createContainer(withRouter(LoginForm), {
+  fragments: {
+		viewer: () => Relay.QL`
+      fragment on Viewer {
+				${LoginMutation.getFragment('viewer')}
+				userInSession {
+					jwt_token
+					${LoginMutation.getFragment('user')}
+				}
+      }
+    `
+  }
+});

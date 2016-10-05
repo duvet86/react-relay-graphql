@@ -4,6 +4,7 @@ import { JWT_SECRET } from '../utils/constants';
 import {
 	GraphQLSchema,
 	GraphQLObjectType,
+	GraphQLID,
 	GraphQLInt,
 	GraphQLString,
 	GraphQLNonNull,
@@ -14,6 +15,7 @@ import {
 	connectionArgs,
 	connectionDefinitions,
 	connectionFromArray,
+	connectionFromPromisedArray,
 	cursorForObjectInConnection,
 	fromGlobalId,
 	globalIdField,
@@ -86,6 +88,11 @@ const quoteType = new GraphQLObjectType({
 		updated_at: {
 			type: GraphQLString,
 			description: "updated at"
+		},
+		author: {
+			type: new GraphQLNonNull(userType),
+			resolve: ({ author_id }) =>
+				getUserById(author_id).then((user) => user)
 		}
 	}),
 	interfaces: [nodeInterface]
@@ -130,6 +137,17 @@ const userType = new GraphQLObjectType({
 		jwt_token: {
 			type: GraphQLString,
 			description: "jwt token"
+		},
+		quotes: {
+      type: quotesConnection,
+			args: connectionArgs,
+      resolve: ({ id }, args) =>
+				connectionFromPromisedArray(getQuotesByAuthorId(id), args)
+    },
+		quotesCount: {
+			type: new GraphQLNonNull(GraphQLInt),
+			resolve: ({ id }) => getQuotesByAuthorId(id)
+				.then((quotes) => quotes.length)
 		}
 	}),
 	interfaces: [nodeInterface]
@@ -139,15 +157,25 @@ const viewerType = new GraphQLObjectType({
 	name: 'Viewer',
 	fields: {
 		id: globalIdField('Viewer'),
-		user: {
+		userInSession: {
 			type: userType,
-			resolve: (parent, args, request, { rootValue }) => {
+			resolve: (viewer, args, request, { rootValue }) => {
 				if (rootValue.user) {
 					const { id } = rootValue.user;
 					return getUserById(id).then((user) => user);
 				}
 				return newUser;
 			}
+		},
+		userById: {
+			type: userType,
+			args: {
+				id: {
+					type: new GraphQLNonNull(GraphQLID)
+				}
+			},
+			resolve: (viewer, { id }) =>
+				getUserById(id).then((user) => user)
 		}
 	},
 	interfaces: [nodeInterface]
@@ -164,14 +192,6 @@ const queryType = new GraphQLObjectType({
 	}
 });
 
-function getCursor(dataList, item) {
-	for (const i of dataList) {
-		if (i.id.toString() === item.id.toString()) {
-			return cursorForObjectInConnection(dataList, i);
-		}
-	}
-}
-
 const loginMutation = mutationWithClientMutationId({
 	name: 'Login',
 	inputFields: {
@@ -187,9 +207,9 @@ const loginMutation = mutationWithClientMutationId({
 			type: viewerType,
 			resolve: () => getViewer()
 		},
-		user: {
+		userInSession: {
 			type: userType,
-			resolve: (user, args, request, { rootValue }) => user
+			resolve: (user) => user
 		}
 	},
 	mutateAndGetPayload: ({ email, password }, request, { rootValue }) => {
@@ -204,49 +224,61 @@ const loginMutation = mutationWithClientMutationId({
 					name: user.name,
 					email: user.email
 				}, JWT_SECRET);
-				rootValue.user = user;
-				return user;
+
+				return updateJwtTokenForUser(user.id, user.jwt_token)
+					.then((user) => {
+						// MAIN HACK				
+						rootValue.user = user;
+						return user;
+					});
 			})
 			.catch((error) => { throw error; });
 	}
 });
 
-// const loginMutation = mutationWithClientMutationId({
-// 	name: 'Login',
-// 	inputFields: {
-// 		email: {
-// 			type: new GraphQLNonNull(GraphQLString)
-// 		},
-// 		password: {
-// 			type: new GraphQLNonNull(GraphQLString)
-// 		},
-// 		remember_token: {
-// 			type: GraphQLString
-// 		}
-// 	},
-// 	outputFields: {
-// 		userEdge: {
-// 			type: userEdge,
-// 			resolve: ({ id }) => getUserById(id).then((user) =>
-// 				getAllUsers().then((users) => {
-// 					return {
-// 						cursor: getCursor(users, user),
-// 						node: user
-// 					};
-// 			}))
-// 		},
-// 		viewer: {
-// 			type: viewerType,
-// 			resolve: () => getViewer()
-// 		}
-// 	},
-// 	mutateAndGetPayload: (user) => createUser(user)
-// });
+function getCursor(dataList, item) {
+	for (const i of dataList) {
+		if (i.id.toString() === item.id.toString()) {
+			return cursorForObjectInConnection(dataList, i);
+		}
+	}
+}
+
+const createQuoteMutation = mutationWithClientMutationId({
+	name: 'CreateQuote',
+	inputFields: {
+		text: {
+			type: new GraphQLNonNull(GraphQLString)
+		},
+		author_id: {
+			type: new GraphQLNonNull(GraphQLID)
+		}
+	},
+	outputFields: {
+		quoteEdge: {
+			type: quoteEdge,
+			resolve: ({ id }) => getQuoteById(id).then((quote) =>
+				getQuotesByAuthorId(quote.id).then((quotes) => {
+					return {
+						cursor: getCursor(quotes, quote),
+						node: quote
+					};
+			}))
+		},
+		viewer: {
+			type: viewerType,
+			resolve: () => getViewer()
+		}
+	},
+	mutateAndGetPayload: ({ text, author_id}) =>
+		createQuote(text, author_id)
+});
 
 const mutationType = new GraphQLObjectType({
 	name: 'Mutation',
 	fields: {
-		loginUser: loginMutation
+		loginUser: loginMutation,
+		createQuote: createQuoteMutation
 	}
 });
 
